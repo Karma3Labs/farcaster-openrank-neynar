@@ -74,7 +74,7 @@ USING btree(cast_hash);
 CREATE INDEX IF NOT EXISTS k3l_cast_action_timestamp_idx ON public.k3l_cast_action 
 USING btree (action_ts);
 
-CREATE UNIQUE IF NOT EXISTS INDEX k3l_cast_action_unique_idx ON public.k3l_cast_action 
+CREATE UNIQUE INDEX IF NOT EXISTS k3l_cast_action_unique_idx ON public.k3l_cast_action 
 USING btree(cast_hash, fid, action_ts);
 
 CREATE TABLE IF NOT EXISTS k3l_cast_action_y2024m04 PARTITION OF k3l_cast_action
@@ -148,14 +148,30 @@ AS
      JOIN latest_compute ON cfids.compute_ts = latest_compute.max_ts AND cfids.channel_id = latest_compute.channel_id
 WITH DATA;
 
-CREATE INDEX k3l_channel_rank_ch_idx
+CREATE INDEX IF NOT EXISTS k3l_channel_rank_ch_idx
     ON public.k3l_channel_rank USING btree (channel_id);
 
-CREATE INDEX k3l_channel_rank_fid_idx
+CREATE INDEX IF NOT EXISTS k3l_channel_rank_fid_idx
     ON public.k3l_channel_rank USING btree (fid);
 
-CREATE UNIQUE INDEX k3l_channel_rank_idx
+CREATE UNIQUE INDEX IF NOT EXISTS k3l_channel_rank_idx
     ON public.k3l_channel_rank USING btree (pseudo_id);
 
-CREATE INDEX k3l_channel_rank_rank_idx
+CREATE INDEX IF NOT EXISTS k3l_channel_rank_rank_idx
     ON public.k3l_channel_rank USING btree (rank);
+
+
+------------------------------------------------------------------------------------
+
+CREATE UNLOGGED TABLE IF NOT EXISTS public.globaltrust
+(
+    strategy_id integer,
+    i bigint,
+    v real,
+    date date DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT globaltrust_strategy_name_date_i_unique UNIQUE (strategy_id, date, i)
+);
+
+CREATE INDEX IF NOT EXISTS globaltrust_id_idx
+    ON public.globaltrust USING btree
+    (strategy_id ASC NULLS LAST);
