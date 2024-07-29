@@ -107,8 +107,7 @@ CREATE TABLE IF NOT EXISTS public.k3l_channel_fids
     score real NOT NULL,
     rank bigint NOT NULL,
     compute_ts timestamp without time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    strategy_name text NOT NULL,
-    CONSTRAINT k3l_channel_fids_compute_ts_unique PRIMARY KEY (channel_id, fid, compute_ts, strategy_name)
+    strategy_name text NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS k3l_channel_fids_compute_ts_idx
