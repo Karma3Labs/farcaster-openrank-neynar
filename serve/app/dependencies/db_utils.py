@@ -378,6 +378,7 @@ async def get_popular_channel_casts_lite(
         weights: Weights,
         offset: int,
         limit: int,
+        sorting_order: str,
         pool: Pool
 ):
     match agg:
@@ -387,6 +388,11 @@ async def get_popular_channel_casts_lite(
             agg_sql = 'sum(power(fid_cast_scores.cast_score,2))'
         case ScoreAgg.SUM | _:
             agg_sql = 'sum(fid_cast_scores.cast_score)'
+
+    if sorting_order == 'recent':
+        ordering = True
+    else:
+        ordering = False
 
     sql_query = f"""
         with fid_cast_scores as (
@@ -413,8 +419,8 @@ async def get_popular_channel_casts_lite(
   										AND now() - interval '10 minutes'
                     AND casts.root_parent_url = $2)
             INNER JOIN k3l_channel_rank as fids ON (fids.channel_id=$1 AND fids.fid = ci.fid )
-            WHERE deleted_at IS NULL
             GROUP BY casts.hash, ci.fid
+            ORDER BY cast_ts desc
             LIMIT 100000
         )
         , scores AS (
@@ -424,15 +430,21 @@ async def get_popular_channel_casts_lite(
                 MIN(cast_ts) as cast_ts
             FROM fid_cast_scores
             GROUP BY cast_hash
-        )
+        ),
+    cast_details as (
     SELECT
         '0x' || encode(cast_hash, 'hex') as cast_hash,
-        DATE_TRUNC('hour', cast_ts) as cast_hour
+        DATE_TRUNC('hour', cast_ts) as cast_hour,
+        cast_ts,
+        row_number() over(partition by date_trunc('day',cast_ts) order by random()) as rn
     FROM scores
     WHERE cast_score*100000000000>100
     ORDER BY date_trunc('day',cast_ts) DESC, cast_score DESC
     OFFSET $3
-    LIMIT $4 
+    LIMIT $4
+    )
+    select cast_hash, cast_hour, cast_ts from cast_details
+    {'order by cast_ts desc' if ordering else ''}
     """
     return await fetch_rows(channel_id, channel_url, offset, limit, sql_query=sql_query, pool=pool)
 
@@ -443,6 +455,7 @@ async def get_popular_channel_casts_heavy(
         weights: Weights,
         offset: int,
         limit: int,
+        sorting_order: str,
         pool: Pool
 ):
     match agg:
@@ -452,6 +465,11 @@ async def get_popular_channel_casts_heavy(
             agg_sql = 'sum(power(fid_cast_scores.cast_score,2))'
         case ScoreAgg.SUM | _:
             agg_sql = 'sum(fid_cast_scores.cast_score)'
+
+    if sorting_order == 'recent':
+        ordering = True
+    else:
+        ordering = False
 
     sql_query = f"""
         with fid_cast_scores as (
@@ -469,7 +487,8 @@ async def get_popular_channel_casts_heavy(
                         1-(1/(365*24)::numeric),
                         (EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - ci.action_ts)) / (60 * 60))::numeric
                     )
-                ) as cast_score
+                ) as cast_score,
+                MIN(ci.action_ts) as cast_ts
             FROM k3l_recent_parent_casts as casts 
             INNER JOIN k3l_cast_action as ci
                 ON (ci.cast_hash = casts.hash
@@ -477,8 +496,7 @@ async def get_popular_channel_casts_heavy(
   										AND now() - interval '10 minutes'
                     AND casts.root_parent_url = $2)
             INNER JOIN k3l_channel_rank as fids ON (fids.channel_id=$1 AND fids.fid = ci.fid )
-            WHERE deleted_at IS NULL
-            GROUP BY casts.hash, ci.fid
+            ORDER BY cast_ts desc
             LIMIT 100000
         )
         , scores AS (
@@ -487,7 +505,8 @@ async def get_popular_channel_casts_heavy(
                 {agg_sql} as cast_score
                 FROM fid_cast_scores
                 GROUP BY cast_hash
-            )
+            ),
+    cast_details as (
     SELECT
         '0x' || encode(casts.hash, 'hex') as cast_hash,
         DATE_TRUNC('hour', casts.timestamp) as cast_hour,
@@ -496,12 +515,169 @@ async def get_popular_channel_casts_heavy(
         casts.mentions,
         casts.fid,
         casts.timestamp,
-        cast_score
+        cast_score,
+        row_number() over(partition by date_trunc('day',casts.timestamp) order by random()) as rn
     FROM k3l_recent_parent_casts as casts
     INNER JOIN scores on casts.hash = scores.cast_hash 
-    AND cast_score*100000000000>100
+    WHERE cast_score*100000000000>100
     ORDER BY date_trunc('day',casts.timestamp) DESC, cast_score DESC
     OFFSET $3
     LIMIT $4
+    )
+    select cast_hash, cast_hour, text, embeds, mentions, fid, timestamp, cast_score
+    from cast_details
+    {'order by timestamp desc' if ordering else ''}
     """
     return await fetch_rows(channel_id, channel_url, offset, limit, sql_query=sql_query, pool=pool)
+
+
+async def get_trending_casts_lite(
+        agg: ScoreAgg,
+        weights: Weights,
+        offset: int,
+        limit: int,
+        pool: Pool
+):
+    match agg:
+        case ScoreAgg.RMS:
+            agg_sql = 'sqrt(avg(power(fid_cast_scores.cast_score,2)))'
+        case ScoreAgg.SUMSQUARE:
+            agg_sql = 'sum(power(fid_cast_scores.cast_score,2))'
+        case ScoreAgg.SUM | _:
+            agg_sql = 'sum(fid_cast_scores.cast_score)'
+
+    sql_query = f"""
+        with 
+        latest_global_rank as (
+        select profile_id as fid, score from k3l_rank g where strategy_id=3 
+            and date in (select max(date) from k3l_rank)
+        ),
+        fid_cast_scores as (
+            SELECT
+                hash as cast_hash,
+                SUM(
+                    (
+                        ({weights.cast} * fids.score * ci.casted) 
+                        + ({weights.reply} * fids.score * ci.replied)
+                        + ({weights.recast} * fids.score * ci.recasted)
+                        + ({weights.like} * fids.score * ci.liked)
+                    )
+                    *
+                    power(
+                        1-(1/(365*24)::numeric),
+                        (EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - ci.action_ts)) / (60 * 60))::numeric
+                    )
+                ) as cast_score,
+                MIN(ci.action_ts) as cast_ts
+            FROM k3l_recent_parent_casts as casts 
+            INNER JOIN k3l_cast_action as ci
+                ON (ci.cast_hash = casts.hash
+                    AND ci.action_ts BETWEEN now() - interval '1 days' 
+  										AND now() - interval '10 minutes')
+            INNER JOIN latest_global_rank as fids ON (fids.fid = ci.fid )
+            GROUP BY casts.hash, ci.fid
+            ORDER BY cast_ts desc
+            LIMIT 100000
+        )
+        , scores AS (
+            SELECT
+                cast_hash,
+                {agg_sql} as cast_score,
+                MIN(cast_ts) as cast_ts
+            FROM fid_cast_scores
+            GROUP BY cast_hash
+        ),
+    cast_details as (
+    SELECT
+        '0x' || encode(cast_hash, 'hex') as cast_hash,
+        DATE_TRUNC('hour', cast_ts) as cast_hour,
+        (extract(minute FROM cast_ts)::int / 5) AS min5_slot,
+        row_number() over(partition by date_trunc('hour',cast_ts),(extract(minute FROM cast_ts)::int / 5) order by random()) as rn
+    FROM scores
+    WHERE cast_score*10000000>1
+    ORDER BY  cast_hour DESC,min5_slot desc, cast_score DESC
+    OFFSET $1
+    LIMIT $2)
+    select cast_hash,cast_hour from cast_details order by rn
+    """
+    return await fetch_rows(offset, limit, sql_query=sql_query, pool=pool)
+
+
+async def get_trending_casts_heavy(
+        agg: ScoreAgg,
+        weights: Weights,
+        offset: int,
+        limit: int,
+        pool: Pool
+):
+    match agg:
+        case ScoreAgg.RMS:
+            agg_sql = 'sqrt(avg(power(fid_cast_scores.cast_score,2)))'
+        case ScoreAgg.SUMSQUARE:
+            agg_sql = 'sum(power(fid_cast_scores.cast_score,2))'
+        case ScoreAgg.SUM | _:
+            agg_sql = 'sum(fid_cast_scores.cast_score)'
+
+    sql_query = f"""
+        with 
+        latest_global_rank as (
+        select profile_id as fid, score from k3l_rank g where strategy_id=3 
+            and date in (select max(date) from k3l_rank)
+        )
+        , fid_cast_scores as (
+            SELECT
+                hash as cast_hash,
+                SUM(
+                    (
+                        ({weights.cast} * fids.score * ci.casted) 
+                        + ({weights.reply} * fids.score * ci.replied)
+                        + ({weights.recast} * fids.score * ci.recasted)
+                        + ({weights.like} * fids.score * ci.liked)
+                    )
+                    *
+                    power(
+                        1-(1/(365*24)::numeric),
+                        (EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - ci.action_ts)) / (60 * 60))::numeric
+                    )
+                ) as cast_score,
+                MIN(ci.action_ts) as cast_ts
+            FROM k3l_recent_parent_casts as casts 
+            INNER JOIN k3l_cast_action as ci
+                ON (ci.cast_hash = casts.hash
+                    AND ci.action_ts BETWEEN now() - interval '1 days' 
+  										AND now() - interval '10 minutes')
+            INNER JOIN latest_global_rank as fids ON (fids.fid = ci.fid )
+            GROUP BY casts.hash, ci.fid
+            ORDER BY cast_ts desc
+            LIMIT 1000000
+        )
+        , scores AS (
+            SELECT
+                cast_hash,
+                {agg_sql} as cast_score
+                FROM fid_cast_scores
+                GROUP BY cast_hash
+            ),
+    cast_details as (
+    SELECT
+        '0x' || encode(casts.hash, 'hex') as cast_hash,
+        DATE_TRUNC('hour', casts.timestamp) as cast_hour,
+        (extract(minute FROM casts.timestamp)::int / 5) AS min5_slot,
+        casts.text,
+        casts.embeds,
+        casts.mentions,
+        casts.fid,
+        casts.timestamp,
+        cast_score,
+        row_number() over(partition by DATE_TRUNC('hour', casts.timestamp),(extract(minute FROM casts.timestamp)::int / 5) order by random()) as rn
+    FROM k3l_recent_parent_casts as casts
+    INNER JOIN scores on casts.hash = scores.cast_hash 
+    WHERE cast_score*10000000>1
+    ORDER BY DATE_TRUNC('hour', casts.timestamp) DESC, min5_slot, cast_score DESC
+    OFFSET $1
+    LIMIT $2
+    )
+    select cast_hash,cast_hour,text,embeds,mentions,fid,timestamp,cast_score from cast_details order by rn
+    """
+    return await fetch_rows(offset, limit, sql_query=sql_query, pool=pool)
+
