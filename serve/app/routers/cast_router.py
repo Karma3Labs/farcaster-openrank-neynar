@@ -113,10 +113,8 @@ async def get_trending_casts(
                  Query(description="Define the aggregation function"\
                        " - `rms`, `sumsquare`, `sum`")] = ScoreAgg.SUMSQUARE,
         weights: Annotated[str | None, Query()] = 'L1C10R5Y1',
-        score_mask: Annotated[int | None, Query(ge=0, le=10)] = 6,
         offset: Annotated[int | None, Query(ge=0)] = 0,
         limit: Annotated[int | None, Query(ge=0, le=5000)] = 100,
-        lite: Annotated[bool, Query()] = True,
         pool: Pool = Depends(db_pool.get_db)
 ):
     """
@@ -146,21 +144,13 @@ async def get_trending_casts(
     except:
         raise HTTPException(status_code=400, detail="Weights should be of the form 'LxxCxxRxx'")
 
-    if lite:
-        casts = await db_utils.get_trending_casts_lite(
+    casts = await db_utils.get_trending_casts_lite(
             agg=agg,
             weights=weights,
-            score_threshold_multiplier=pow(10,score_mask),
+            score_threshold_multiplier=pow(10,5),
             offset=offset,
             limit=limit,
             pool=pool)
-    else:
-        casts = await db_utils.get_trending_casts_heavy(
-            agg=agg,
-            weights=weights,
-            score_threshold_multiplier=pow(10,score_mask),
-            offset=offset,
-            limit=limit,
-            pool=pool)
+
     return {"result": casts}
 
