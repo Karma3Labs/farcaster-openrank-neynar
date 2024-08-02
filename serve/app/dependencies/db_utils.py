@@ -534,6 +534,7 @@ async def get_popular_channel_casts_heavy(
 async def get_trending_casts_lite(
         agg: ScoreAgg,
         weights: Weights,
+        score_threshold_multiplier:int,
         offset: int,
         limit: int,
         pool: Pool
@@ -547,17 +548,17 @@ async def get_trending_casts_lite(
             agg_sql = 'sum(fid_cast_scores.cast_score)'
 
     sql_query = f"""
-        with 
+        with
         latest_global_rank as (
-        select profile_id as fid, score from k3l_rank g where strategy_id=3 
-            and date in (select max(date) from k3l_rank)
+        select profile_id as fid, score from globaltrust g where strategy_id=3
+            and date in (select max(date) from globaltrust)
         ),
         fid_cast_scores as (
             SELECT
                 hash as cast_hash,
                 SUM(
                     (
-                        ({weights.cast} * fids.score * ci.casted) 
+                        ({weights.cast} * fids.score * ci.casted)
                         + ({weights.reply} * fids.score * ci.replied)
                         + ({weights.recast} * fids.score * ci.recasted)
                         + ({weights.like} * fids.score * ci.liked)
@@ -569,10 +570,10 @@ async def get_trending_casts_lite(
                     )
                 ) as cast_score,
                 MIN(ci.action_ts) as cast_ts
-            FROM k3l_recent_parent_casts as casts 
+            FROM k3l_recent_parent_casts as casts
             INNER JOIN k3l_cast_action as ci
                 ON (ci.cast_hash = casts.hash
-                    AND ci.action_ts BETWEEN now() - interval '1 days' 
+                    AND ci.action_ts BETWEEN now() - interval '1 days'
   										AND now() - interval '10 minutes')
             INNER JOIN latest_global_rank as fids ON (fids.fid = ci.fid )
             GROUP BY casts.hash, ci.fid
@@ -594,7 +595,7 @@ async def get_trending_casts_lite(
         (extract(minute FROM cast_ts)::int / 5) AS min5_slot,
         row_number() over(partition by date_trunc('hour',cast_ts),(extract(minute FROM cast_ts)::int / 5) order by random()) as rn
     FROM scores
-    WHERE cast_score*10000000>1
+    WHERE cast_score*{score_threshold_multiplier}>1
     ORDER BY  cast_hour DESC,min5_slot desc, cast_score DESC
     OFFSET $1
     LIMIT $2)
@@ -606,6 +607,7 @@ async def get_trending_casts_lite(
 async def get_trending_casts_heavy(
         agg: ScoreAgg,
         weights: Weights,
+        score_threshold_multiplier:int,
         offset: int,
         limit: int,
         pool: Pool
@@ -619,17 +621,17 @@ async def get_trending_casts_heavy(
             agg_sql = 'sum(fid_cast_scores.cast_score)'
 
     sql_query = f"""
-        with 
+        with
         latest_global_rank as (
-        select profile_id as fid, score from k3l_rank g where strategy_id=3 
-            and date in (select max(date) from k3l_rank)
+        select profile_id as fid, score from globaltrust g where strategy_id=3
+            and date in (select max(date) from globaltrust)
         )
         , fid_cast_scores as (
             SELECT
                 hash as cast_hash,
                 SUM(
                     (
-                        ({weights.cast} * fids.score * ci.casted) 
+                        ({weights.cast} * fids.score * ci.casted)
                         + ({weights.reply} * fids.score * ci.replied)
                         + ({weights.recast} * fids.score * ci.recasted)
                         + ({weights.like} * fids.score * ci.liked)
@@ -641,10 +643,10 @@ async def get_trending_casts_heavy(
                     )
                 ) as cast_score,
                 MIN(ci.action_ts) as cast_ts
-            FROM k3l_recent_parent_casts as casts 
+            FROM k3l_recent_parent_casts as casts
             INNER JOIN k3l_cast_action as ci
                 ON (ci.cast_hash = casts.hash
-                    AND ci.action_ts BETWEEN now() - interval '1 days' 
+                    AND ci.action_ts BETWEEN now() - interval '1 days'
   										AND now() - interval '10 minutes')
             INNER JOIN latest_global_rank as fids ON (fids.fid = ci.fid )
             GROUP BY casts.hash, ci.fid
@@ -671,8 +673,8 @@ async def get_trending_casts_heavy(
         cast_score,
         row_number() over(partition by DATE_TRUNC('hour', casts.timestamp),(extract(minute FROM casts.timestamp)::int / 5) order by random()) as rn
     FROM k3l_recent_parent_casts as casts
-    INNER JOIN scores on casts.hash = scores.cast_hash 
-    WHERE cast_score*10000000>1
+    INNER JOIN scores on casts.hash = scores.cast_hash
+    WHERE cast_score*{score_threshold_multiplier}>1
     ORDER BY DATE_TRUNC('hour', casts.timestamp) DESC, min5_slot, cast_score DESC
     OFFSET $1
     LIMIT $2
@@ -680,4 +682,3 @@ async def get_trending_casts_heavy(
     select cast_hash,cast_hour,text,embeds,mentions,fid,timestamp,cast_score from cast_details order by rn
     """
     return await fetch_rows(offset, limit, sql_query=sql_query, pool=pool)
-
