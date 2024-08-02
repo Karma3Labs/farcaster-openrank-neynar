@@ -419,6 +419,7 @@ async def get_popular_channel_casts_lite(
   										AND now() - interval '10 minutes'
                     AND casts.root_parent_url = $2)
             INNER JOIN k3l_channel_rank as fids ON (fids.channel_id=$1 AND fids.fid = ci.fid )
+            WHERE deleted_at IS NULL
             GROUP BY casts.hash, ci.fid
             ORDER BY cast_ts desc
             LIMIT 100000
@@ -496,6 +497,7 @@ async def get_popular_channel_casts_heavy(
   										AND now() - interval '10 minutes'
                     AND casts.root_parent_url = $2)
             INNER JOIN k3l_channel_rank as fids ON (fids.channel_id=$1 AND fids.fid = ci.fid )
+            WHERE deleted_at IS NULL
             ORDER BY cast_ts desc
             LIMIT 100000
         )
