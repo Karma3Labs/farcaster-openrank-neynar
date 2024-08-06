@@ -552,8 +552,8 @@ async def get_trending_casts_lite(
     sql_query = f"""
         with
         latest_global_rank as (
-        select profile_id as fid, score from globaltrust g where strategy_id=3
-            and date in (select max(date) from globaltrust)
+        select profile_id as fid, score from k3l_rank g where strategy_id=3
+            and date in (select max(date) from k3l_rank)
             and rank <= 15000
         ),
         fid_cast_scores as (
