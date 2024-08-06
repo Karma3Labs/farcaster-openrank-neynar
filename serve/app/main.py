@@ -45,8 +45,9 @@ def custom_log_filter(record):
             return False
     return True
 
-logger.add(sys.stdout, 
+logger.add(sys.stdout,
            colorize=True,
+           seralize=True,
            format=settings.LOGURU_FORMAT,
            filter=custom_log_filter)
 
