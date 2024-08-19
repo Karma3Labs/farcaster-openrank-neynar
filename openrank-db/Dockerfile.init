@@ -1,0 +1,13 @@
+FROM alpine:latest
+
+# Install necessary packages
+RUN apk --no-cache add wget curl gzip postgresql-client pv coreutils zip aws-cli
+
+# Copy the script to the container
+COPY ./scripts/01_init_and_populate_db.sh /scripts/01_init_and_populate_db.sh
+
+# Ensure the script is executable
+RUN chmod +x /scripts/01_init_and_populate_db.sh
+
+# Set the entrypoint to the script
+ENTRYPOINT ["sh", "/scripts/01_init_and_populate_db.sh"]
