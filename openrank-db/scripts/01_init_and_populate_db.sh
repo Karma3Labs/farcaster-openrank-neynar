@@ -2,7 +2,7 @@
 # Download and import the initial database schema and data
 set -e
 
-FLAG_FILE="/tmp/initialized.flag"
+FLAG_FILE="/var/lib/postgresql/data/initialized.flag"
 
 if [ -f "$FLAG_FILE" ]; then
     echo "Initialization already completed. Exiting..."
@@ -71,6 +71,7 @@ unset PGPASSWORD
 
 if [ $? -eq 0 ]; then
     echo "Database restored successfully"
+    touch $FLAG_FILE
 else
     echo "Failed to restore database"
     exit 1

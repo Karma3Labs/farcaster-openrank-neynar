@@ -19,27 +19,6 @@ services:
       retries: 5
     networks:
       - farcaster-network
-  openrank-db-init:
-    build:
-      context: .
-      dockerfile: Dockerfile.init
-    container_name: openrank-db-init
-    shm_size: '1gb'
-    environment:
-      POSTGRES_PORT: ${POSTGRES_PORT}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_HOST: postgres
-      POSTGRES_NAME: ${POSTGRES_NAME}
-      S3_BUCKET: ${S3_BUCKET}
-      S3_PREFIX: ${S3_PREFIX}
-      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
-      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
-      AWS_REGION: ${AWS_REGION}
-    volumes:
-      - /data/tmp:/tmp
-    networks:
-      - farcaster-network
 networks:
   farcaster-network:
     name: farcaster-network
