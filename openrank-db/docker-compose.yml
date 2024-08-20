@@ -1,0 +1,32 @@
+services:
+  postgres:
+    build: .
+    container_name: openrank-db
+    shm_size: '2gb'
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_NAME}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "${POSTGRES_PORT}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - farcaster-network
+networks:
+  farcaster-network:
+    name: farcaster-network
+    external: true
+volumes:
+  postgres-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /data/openrank-db/postgres-data
