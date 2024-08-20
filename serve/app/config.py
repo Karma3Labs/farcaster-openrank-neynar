@@ -15,9 +15,9 @@ class Settings(BaseSettings):
 
     LOG_LEVEL: str = 'INFO'
     LOG_LEVEL_CORE: str = 'DEBUG'
-    LOGURU_FORMAT: str = ("<green>{time:YYYY-MM-DD HH:mm:ss}</green>"
+    LOGURU_FORMAT: str = ("{time:YYYY-MM-DD HH:mm:ss}"
                             " | {name}:{function}:{line} [{correlation_id}]"
-                            " | {level} | <level>{message}</level>" )
+                            " | {message}" )
     SWAGGER_BASE_URL: str
 
     RELOAD_FREQ_SECS: int = 3600
