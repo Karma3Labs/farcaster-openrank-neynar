@@ -46,7 +46,8 @@ def custom_log_filter(record):
     return True
 
 logger.add(sys.stdout,
-           serialize=True,
+           serialize=os.getenv("LOG_SERIALIZE", "False").lower() == "true",
+           colorize=os.getenv("LOG_COLORIZE", "True").lower() == "true",
            format=settings.LOGURU_FORMAT,
            filter=custom_log_filter)
 
