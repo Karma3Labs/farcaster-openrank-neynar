@@ -17,7 +17,7 @@ async def get_personalized_engagement_for_fid(
   graph_model: PlGraph = Depends(pl_graph_utils.get_engagement_graph),
 ):
   """
-  Given a list of input fids, return a list of fids
+  Given an input fid, return a list of fids
     trusted by the extended network of the input fids. \n
   The addresses in the result are ranked by a relative scoring mechanism 
     that is based on the EigenTrust algorithm. \n
@@ -28,11 +28,9 @@ async def get_personalized_engagement_for_fid(
   Example: [1, 2] \n
   **IMPORTANT**: Please use HTTP POST method and not GET method.
   """
-  if not (1 <= len(fid) <= 100):
-    raise HTTPException(status_code=400, detail="Input should have between 1 and 100 entries")
   logger.debug(fid)
   res = await _get_personalized_scores_for_fid(
-                    fids=fid, 
+                    fid=fid,
                     k=k, 
                     limit=limit, 
                     graph_model=graph_model)
