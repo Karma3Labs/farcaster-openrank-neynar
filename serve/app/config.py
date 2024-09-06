@@ -18,6 +18,8 @@ class Settings(BaseSettings):
     LOGURU_FORMAT: str = ("{time:YYYY-MM-DD HH:mm:ss}"
                             " | {name}:{function}:{line} [{correlation_id}]"
                             " | {message}" )
+    LOG_SERIALIZE:bool = True
+    LOG_COLORIZE:bool = False
     SWAGGER_BASE_URL: str
 
     RELOAD_FREQ_SECS: int = 3600
