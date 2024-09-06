@@ -46,6 +46,6 @@ async def _get_personalized_scores_for_fid(
   # compute eigentrust on the neighbor graph using fids
   trust_scores = await pl_graph_utils.get_neighbors_scores(fid, graph_model, k, limit)
   for d in trust_scores:
-      d['fid'] = d.pop['i']
-      d['score'] = d.pop['v']
+      d['fid'] = d.pop('i')
+      d['score'] = d.pop('v')
   return sorted(trust_scores, key=lambda d: d['score'], reverse=True)
