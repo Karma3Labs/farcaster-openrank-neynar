@@ -1,5 +1,7 @@
 #!/bin/bash
 
+source .env
+
 while getopts o:s: flag
 do
     case "${flag}" in
