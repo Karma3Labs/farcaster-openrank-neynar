@@ -604,3 +604,35 @@ async def get_trending_casts_lite(
     select cast_hash,cast_hour from cast_details order by rn
     """
     return await fetch_rows(offset, limit, sql_query=sql_query, pool=pool)
+
+
+async def get_top_casters(
+        offset: int,
+        limit: int,
+        pool: Pool
+):
+    sql_query = f""" select i as fid, v as score from k3l_top_casters 
+                    where date_iso = (select max(date_iso) from k3l_top_casters)
+                    OFFSET $1 LIMIT $2"""
+    return await fetch_rows(offset, limit, sql_query=sql_query, pool=pool)
+
+
+async def get_top_spammers(
+        offset: int,
+        limit: int,
+        pool: Pool
+):
+    sql_query = f""" select 
+                    fid,
+                    display_name,
+                    total_outgoing,
+                    spammer_score,
+                    total_parent_casts,
+                    total_replies_with_parent_hash,
+                    global_openrank_score,
+                    global_rank,
+                    total_global_rank_rows
+                    from k3l_top_spammers 
+                    where date_iso = (select max(date_iso) from k3l_top_spammers)
+                    OFFSET $1 LIMIT $2"""
+    return await fetch_rows(offset, limit, sql_query=sql_query, pool=pool)
