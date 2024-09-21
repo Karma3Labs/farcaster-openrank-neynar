@@ -174,3 +174,28 @@ CREATE UNLOGGED TABLE IF NOT EXISTS public.globaltrust
 CREATE INDEX IF NOT EXISTS globaltrust_id_idx
     ON public.globaltrust USING btree
     (strategy_id ASC NULLS LAST);
+
+------------------------------------------------------------------------------------
+
+CREATE TABLE public.k3l_top_casters (
+	i int8 NOT NULL,
+	v float8 NOT NULL,
+	date_iso date NOT NULL,
+    CONSTRAINT top_casters_i_date_iso_unique UNIQUE (date_iso, i)
+);
+
+-----------------------------------------
+
+CREATE TABLE public.k3l_top_spammers (
+  fid int8 NOT NULL,
+  display_name text NULL,
+  total_outgoing int8 NOT NULL,
+  spammer_score float8 NOT NULL,
+  total_parent_casts int8 NOT NULL,
+  total_replies_with_parent_hash int8 NOT NULL,
+  global_openrank_score float8 NOT NULL,
+  global_rank int8 NOT NULL,
+  total_global_rank_rows int8 NOT NULL,
+  date_iso date NOT NULL,
+  CONSTRAINT top_spammers_fid_date_iso_unique UNIQUE (date_iso, fid)
+);
