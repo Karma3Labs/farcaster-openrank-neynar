@@ -272,14 +272,14 @@ async def get_popular_neighbors_casts(
             agg_sql = 'sum(fid_cast_scores.cast_score)'
 
     resp_fields = "'0x' || encode(casts.hash, 'hex') as cast_hash," \
-                  "DATE_TRUNC('hour', casts.timestamp) as cast_hour"
+                  "DATE_TRUNC('hour', casts.timestamp) as cast_hour,"\
+                  "casts.fid"
     if not lite:
         resp_fields = f"""
             {resp_fields}, 
             casts.text,
             casts.embeds,
             casts.mentions,
-            casts.fid,
             casts.timestamp,
             cast_score
         """
@@ -338,7 +338,9 @@ async def get_recent_neighbors_casts(
         lite: bool,
         pool: Pool
 ):
-    resp_fields = "'0x' || encode( casts.hash, 'hex') as cast_hash"
+    resp_fields = "'0x' || encode( casts.hash, 'hex') as cast_hash,"\
+                  "casts.fid"
+
     if not lite:
         resp_fields = f"""
             {resp_fields},
@@ -348,8 +350,7 @@ async def get_recent_neighbors_casts(
             substring(encode(casts.hash, 'hex'), 1, 8) as url,
             casts.text,
             casts.embeds,
-            casts.mentions,  
-            casts.fid,
+            casts.mentions,
             casts.timestamp,
             power(
                 1-(1/(365*24)::numeric),
@@ -398,6 +399,7 @@ async def get_popular_channel_casts_lite(
         with fid_cast_scores as (
             SELECT
                 hash as cast_hash,
+                ci.fid,
                 SUM(
                     (
                         ({weights.cast} * fids.score * ci.casted) 
@@ -427,13 +429,15 @@ async def get_popular_channel_casts_lite(
         , scores AS (
             SELECT
                 cast_hash,
+                fid,
                 {agg_sql} as cast_score,
                 MIN(cast_ts) as cast_ts
             FROM fid_cast_scores
-            GROUP BY cast_hash
+            GROUP BY cast_hash, fid
         ),
     cast_details as (
     SELECT
+        fid,
         '0x' || encode(cast_hash, 'hex') as cast_hash,
         DATE_TRUNC('hour', cast_ts) as cast_hour,
         cast_ts,
@@ -444,7 +448,7 @@ async def get_popular_channel_casts_lite(
     OFFSET $3
     LIMIT $4
     )
-    select cast_hash, cast_hour, cast_ts from cast_details
+    select fid, cast_hash, cast_hour, cast_ts from cast_details
     {'order by cast_ts desc' if ordering else ''}
     """
     return await fetch_rows(channel_id, channel_url, offset, limit, sql_query=sql_query, pool=pool)
@@ -476,6 +480,7 @@ async def get_popular_channel_casts_heavy(
         with fid_cast_scores as (
             SELECT
                 hash as cast_hash,
+                ci.fid,
                 SUM(
                     (
                         ({weights.cast} * fids.score * ci.casted) 
@@ -498,6 +503,7 @@ async def get_popular_channel_casts_heavy(
                     AND casts.root_parent_url = $2)
             INNER JOIN k3l_channel_rank as fids ON (fids.channel_id=$1 AND fids.fid = ci.fid )
             WHERE deleted_at IS NULL
+            GROUP BY casts.hash, ci.fid
             ORDER BY cast_ts desc
             LIMIT 100000
         )
@@ -559,6 +565,7 @@ async def get_trending_casts_lite(
         fid_cast_scores as (
             SELECT
                 hash as cast_hash,
+                ci.fid,
                 SUM(
                     (
                         ({weights.cast} * fids.score * ci.casted)
@@ -585,14 +592,16 @@ async def get_trending_casts_lite(
         )
         , scores AS (
             SELECT
+                fid,
                 cast_hash,
                 {agg_sql} as cast_score,
                 MIN(cast_ts) as cast_ts
             FROM fid_cast_scores
-            GROUP BY cast_hash
+            GROUP BY cast_hash, fid
         ),
     cast_details as (
     SELECT
+        fid,
         '0x' || encode(cast_hash, 'hex') as cast_hash,
         DATE_TRUNC('hour', cast_ts) as cast_hour,
         row_number() over(partition by date_trunc('hour',cast_ts) order by random()) as rn
@@ -601,7 +610,7 @@ async def get_trending_casts_lite(
     ORDER BY  cast_hour DESC,cast_score DESC
     OFFSET $1
     LIMIT $2)
-    select cast_hash,cast_hour from cast_details order by rn
+    select fid, cast_hash,cast_hour from cast_details order by rn
     """
     return await fetch_rows(offset, limit, sql_query=sql_query, pool=pool)
 
