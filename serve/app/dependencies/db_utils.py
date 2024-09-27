@@ -2,37 +2,9 @@ import time
 import json
 
 from ..config import settings
-from ..models.score_model import ScoreAgg, Weights, Voting
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlalchemy.orm import sessionmaker
+from ..models.score_model import ScoreAgg, Weights
 from asyncpg.pool import Pool
 from loguru import logger
-
-engine = create_async_engine(
-    settings.POSTGRES_ASYNC_URI.get_secret_value(),
-    echo=settings.POSTGRES_ECHO,
-    future=True,
-    pool_size=max(5, settings.POSTGRES_POOL_SIZE),
-)
-
-SessionLocal = sessionmaker(
-    bind=engine,
-    autocommit=False,
-    autoflush=False,
-    expire_on_commit=False,
-    class_=AsyncSession,
-)
-
-
-# async def get_db_session():
-#     async with SessionLocal() as session:
-#         try:
-#             yield session
-#         except Exception as e:
-#             await session.rollback()
-#             raise e
-#         finally:
-#             await session.close()
 
 async def fetch_rows(
         *args,
@@ -399,7 +371,7 @@ async def get_popular_channel_casts_lite(
         with fid_cast_scores as (
             SELECT
                 hash as cast_hash,
-                ci.fid,
+                casts.fid,
                 SUM(
                     (
                         ({weights.cast} * fids.score * ci.casted) 
@@ -422,7 +394,7 @@ async def get_popular_channel_casts_lite(
                     AND casts.root_parent_url = $2)
             INNER JOIN k3l_channel_rank as fids ON (fids.channel_id=$1 AND fids.fid = ci.fid )
             WHERE deleted_at IS NULL
-            GROUP BY casts.hash, ci.fid
+            GROUP BY casts.hash, casts.fid
             ORDER BY cast_ts desc
             LIMIT 100000
         )
@@ -480,7 +452,6 @@ async def get_popular_channel_casts_heavy(
         with fid_cast_scores as (
             SELECT
                 hash as cast_hash,
-                ci.fid,
                 SUM(
                     (
                         ({weights.cast} * fids.score * ci.casted) 
@@ -503,7 +474,7 @@ async def get_popular_channel_casts_heavy(
                     AND casts.root_parent_url = $2)
             INNER JOIN k3l_channel_rank as fids ON (fids.channel_id=$1 AND fids.fid = ci.fid )
             WHERE deleted_at IS NULL
-            GROUP BY casts.hash, ci.fid
+            GROUP BY casts.hash
             ORDER BY cast_ts desc
             LIMIT 100000
         )
@@ -565,7 +536,7 @@ async def get_trending_casts_lite(
         fid_cast_scores as (
             SELECT
                 hash as cast_hash,
-                ci.fid,
+                casts.fid,
                 SUM(
                     (
                         ({weights.cast} * fids.score * ci.casted)
@@ -586,7 +557,7 @@ async def get_trending_casts_lite(
                     AND ci.action_ts BETWEEN now() - interval '3 days'
   										AND now() - interval '10 minutes')
             INNER JOIN latest_global_rank as fids ON (fids.fid = ci.fid )
-            GROUP BY casts.hash, ci.fid
+            GROUP BY casts.hash, casts.fid
             ORDER BY cast_ts desc
             LIMIT 100000
         )
@@ -620,7 +591,7 @@ async def get_top_casters(
         limit: int,
         pool: Pool
 ):
-    sql_query = f""" select i as fid, v as score from k3l_top_casters 
+    sql_query = """ select i as fid, v as score from k3l_top_casters 
                     where date_iso = (select max(date_iso) from k3l_top_casters)
                     order by v desc
                     OFFSET $1 LIMIT $2"""
@@ -632,7 +603,7 @@ async def get_top_spammers(
         limit: int,
         pool: Pool
 ):
-    sql_query = f""" select 
+    sql_query = """ select 
                     fid,
                     display_name,
                     total_outgoing,
