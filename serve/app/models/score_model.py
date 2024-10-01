@@ -23,6 +23,10 @@ class Weights(NamedTuple):
   reply:int = 7
   like:int = 1
 
+class EngagementType(StrEnum):
+  V3Engagement = 'v3_engagement'
+  V1Engagement = 'v1_engagement'
+
   @staticmethod
   def from_str(weights_str:str) -> Self:
     wts = re.search(r'^([lL](\d{1,2}))?([cC](\d{1,2}))?([rR](\d{1,2}))?([yY](\d{1,2}))?$', weights_str)
