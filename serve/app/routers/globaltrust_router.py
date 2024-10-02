@@ -6,7 +6,7 @@ from asyncpg.pool import Pool
 
 from ..models.graph_model import GraphType
 from ..dependencies import  db_pool, db_utils
-from ..models.score_model import EngagementType
+from ..models.score_model import EngagementType, engagement_ids
 
 router = APIRouter(tags=["Global OpenRank Scores"])
 
@@ -30,7 +30,7 @@ async def get_top_following_profiles(
 
 @router.get("/engagement/rankings")
 async def get_top_engagement_profiles(
-  engagement_type: Annotated[EngagementType, Query()] = EngagementType.V1Engagement,
+  engagement_type: Annotated[EngagementType, Query()] = EngagementType.V1,
   offset: Annotated[int | None, Query()] = 0,
   limit: Annotated[int | None, Query(le=1000)] = 100,
   pool: Pool = Depends(db_pool.get_db)
@@ -41,10 +41,10 @@ async def get_top_engagement_profiles(
   This API takes two optional parameters - offset and limit. \n
   By default, limit is 100 and offset is 0 i.e., returns top 100 fids.
   """
-  if engagement_type == EngagementType.V1Engagement:
-      strategy_id = GraphType.engagement.value
-  elif engagement_type == EngagementType.V3Engagement:
-      strategy_id = GraphType.v3engagement.value
+  if engagement_type == EngagementType.V1:
+      strategy_id = engagement_ids[EngagementType.V1]
+  elif engagement_type == EngagementType.V3:
+      strategy_id = engagement_ids[EngagementType.V3]
 
   ranks = await db_utils.get_top_profiles(strategy_id=strategy_id,
                                           offset=offset, 
@@ -86,7 +86,7 @@ async def get_engagement_rank_for_fids(
       [1,2,3]
     ]
   )],
-  engagement_type: Annotated[EngagementType, Query()] = EngagementType.V1Engagement,
+  engagement_type: Annotated[EngagementType, Query()] = EngagementType.V1,
   pool: Pool = Depends(db_pool.get_db)
 ):
   """
@@ -98,10 +98,10 @@ async def get_engagement_rank_for_fids(
   if not (1 <= len(fids) <= 100):
     raise HTTPException(status_code=400, detail="Input should have between 1 and 100 entries")
 
-  if engagement_type == EngagementType.V1Engagement:
-      strategy_id = GraphType.engagement.value
-  elif engagement_type == EngagementType.V3Engagement:
-      strategy_id = GraphType.v3engagement.value
+  if engagement_type == EngagementType.V1:
+      strategy_id = engagement_ids[EngagementType.V1]
+  elif engagement_type == EngagementType.V3:
+      strategy_id = engagement_ids[EngagementType.V3]
 
   ranks = await db_utils.get_profile_ranks(strategy_id=strategy_id,
                                            fids=fids, 
