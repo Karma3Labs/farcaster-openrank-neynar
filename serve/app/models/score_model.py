@@ -23,9 +23,10 @@ class Weights(NamedTuple):
   reply:int = 7
   like:int = 1
 
+
 class EngagementType(StrEnum):
-  V1 = 'v1'
-  V3 = 'v3'
+  V1 = '1.0'
+  V3 = '2.0'
 
 
 engagement_ids = dict()
