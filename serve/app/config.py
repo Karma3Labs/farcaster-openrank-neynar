@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     LOG_LEVEL_CORE: str = 'DEBUG'
     LOGURU_FORMAT: str = ("{time:YYYY-MM-DD HH:mm:ss}"
                             " | {name}:{function}:{line} [{correlation_id}]"
-                            " | {message}" )
+                            " | {level} | {message}" )
     LOG_SERIALIZE:bool = True
     LOG_COLORIZE:bool = False
     SWAGGER_BASE_URL: str
